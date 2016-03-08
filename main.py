@@ -11,6 +11,7 @@ from Crypto.Cipher import AES
 from urlparse import parse_qsl
 import xbmcgui
 import xbmcplugin
+import xbmcaddon
 import credentials
 
 # Get the plugin url in plugin:// notation.
@@ -23,6 +24,7 @@ _appKey = credentials._appKey
 _secretKey = credentials._secretKey
 _unplayableCategories = ["5-162", "5-164"]
 
+LANGUAGE = xbmcaddon.Addon().getLocalizedString
 
 def get_categories():
     """
@@ -58,6 +60,33 @@ def get_videos(category, offset):
           "&contentprotection=22-0,22-1" \
           "&offset=" + str(offset) + \
           "&app_id=" + _appId + "&app_key=" + _appKey
+
+    response = urllib.urlopen(url)
+    data = json.loads(response.read())
+
+    #print(data['data'])
+
+    return data['data']
+
+
+def get_search_videos(searchstring, offset):
+    """
+    Get the list of videofiles/streams.
+    Here you can insert some parsing code that retrieves
+    the list of videostreams in a given category from some site or server.
+    :param category: str
+    :return: list
+    """
+
+    url = "https://external.api.yle.fi/v1/programs/items.json?" \
+          "availability=ondemand" \
+          "&mediaobject=video" \
+          "&q=" + searchstring + \
+          "&order=updated:desc" \
+          "&contentprotection=22-0,22-1" \
+          "&offset=" + str(offset) + \
+          "&app_id=" + _appId + "&app_key=" + _appKey
+
     response = urllib.urlopen(url)
     data = json.loads(response.read())
 
@@ -75,6 +104,15 @@ def list_categories():
     categories = get_categories()
     # Create a list for our items.
     listing = []
+    # Search
+    list_item = xbmcgui.ListItem(label='Haku')
+    list_item.setInfo('video', {'title': 'Haku', 'genre': 'search'})
+    is_folder = True
+
+    url = '{0}?action=search'.format(_url)
+
+    listing.append((url, list_item, is_folder))
+    
     # Iterate through categories
     for category in categories:
         if 'broader' not in category:
@@ -112,6 +150,22 @@ def list_categories():
     xbmcplugin.endOfDirectory(_handle)
 
 
+def search_video(offset):
+    """
+    Search for videos in the Kodi interface. Shows keyboard.
+    :param offset: int
+    :return: None
+    """
+    keyboard = xbmc.Keyboard( '', LANGUAGE(32101), False )
+    keyboard.doModal()
+    if ( keyboard.isConfirmed() ):
+        searchstring = keyboard.getText()
+
+        videos = get_search_videos(searchstring, offset)
+
+        list_gui_videos('', offset, videos)
+
+
 def list_videos(category, offset):
     """
     Create the list of playable videos in the Kodi interface.
@@ -120,6 +174,11 @@ def list_videos(category, offset):
     """
     # Get the list of videos in the category.
     videos = get_videos(category, offset)
+
+    list_gui_videos(category, offset, videos)
+
+
+def list_gui_videos(category, offset, videos):
     # Create a list for our items.
     listing = []
     #list.append(('{0}', '...', True))
@@ -234,7 +293,7 @@ def router(paramstring):
     # Check the parameters passed to the plugin
     if params:
         if params['action'] == 'listing':
-            offset = 0;
+            offset = 0
             if 'offset' in params:
               offset = int(params['offset'])
             # Display the list of videos in a provided category.
@@ -242,6 +301,9 @@ def router(paramstring):
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             play_video(params['video'])
+        elif params['action'] == 'search':
+            offset = 0
+            search_video(offset)
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories

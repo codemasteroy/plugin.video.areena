@@ -107,11 +107,10 @@ def list_categories():
     # Search
     list_item = xbmcgui.ListItem(label='Haku')
     list_item.setInfo('video', {'title': 'Haku', 'genre': 'search'})
-    is_folder = True
 
     url = '{0}?action=search'.format(_url)
 
-    listing.append((url, list_item, is_folder))
+    listing.append((url, list_item, True))
     
     # Iterate through categories
     for category in categories:
@@ -150,20 +149,22 @@ def list_categories():
     xbmcplugin.endOfDirectory(_handle)
 
 
-def search_video(offset):
+def search_video(searchstring, offset):
     """
     Search for videos in the Kodi interface. Shows keyboard.
     :param offset: int
     :return: None
     """
-    keyboard = xbmc.Keyboard( '', LANGUAGE(32101), False )
-    keyboard.doModal()
-    if ( keyboard.isConfirmed() ):
-        searchstring = keyboard.getText()
 
-        videos = get_search_videos(searchstring, offset)
+    if searchstring == '':
+        keyboard = xbmc.Keyboard( '', LANGUAGE(32101), False )
+        keyboard.doModal()
 
-        list_gui_videos('', offset, videos)
+        if keyboard.isConfirmed():
+            searchstring = keyboard.getText()
+
+    videos = get_search_videos(searchstring, offset)
+    list_gui_videos('', searchstring, offset, videos)
 
 
 def list_videos(category, offset):
@@ -175,10 +176,10 @@ def list_videos(category, offset):
     # Get the list of videos in the category.
     videos = get_videos(category, offset)
 
-    list_gui_videos(category, offset, videos)
+    list_gui_videos(category, '', offset, videos)
 
 
-def list_gui_videos(category, offset, videos):
+def list_gui_videos(category, searchstring, offset, videos):
     # Create a list for our items.
     listing = []
     #list.append(('{0}', '...', True))
@@ -219,7 +220,12 @@ def list_gui_videos(category, offset, videos):
         listing.append((url, list_item, is_folder))
 
     list_item = xbmcgui.ListItem(label="Next page")
-    url = '{0}?action=listing&category={1}&offset={2}'.format(_url, category, (offset + 25))
+
+    if category:
+        url = '{0}?action=listing&category={1}&offset={2}'.format(_url, category, (offset + 25))
+    else:
+        url = '{0}?action=search&q={1}&offset={2}'.format(_url, searchstring, (offset + 25))
+
     listing.append((url, list_item, True))
     # Add our listing to Kodi.
     # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
@@ -294,16 +300,29 @@ def router(paramstring):
     if params:
         if params['action'] == 'listing':
             offset = 0
+            category = ''
             if 'offset' in params:
-              offset = int(params['offset'])
+                offset = int(params['offset'])
+
+            if 'category' in params:
+                category = params['category']
+
             # Display the list of videos in a provided category.
-            list_videos(params['category'], offset)
+            list_videos(category, offset)
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             play_video(params['video'])
         elif params['action'] == 'search':
             offset = 0
-            search_video(offset)
+            searchstring = '';
+
+            if 'offset' in params:
+                offset = int(params['offset'])
+
+            if 'q' in params:
+                searchstring = params['q']
+
+            search_video(searchstring, offset)
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
